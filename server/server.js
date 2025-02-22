@@ -1,5 +1,6 @@
 const express = require("express");
 const request = require("request");
+const fetch = require("node-fetch"); // node-fetch যোগ করা
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -17,17 +18,23 @@ const CACHE_DURATION = 60 * 60 * 1000; // 1 ঘণ্টার ক্যাশ
 async function fetchChannelData() {
     const now = Date.now();
     if (channelCache && (now - lastFetched) < CACHE_DURATION) {
+        console.log("Returning cached channel data");
         return channelCache; // ক্যাশ থেকে রিটার্ন
     }
 
     try {
+        console.log("Fetching channel data from GitHub...");
         const response = await fetch(jsonUrl);
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+        }
         const data = await response.json();
         channelCache = data;
         lastFetched = now;
+        console.log("Channel data fetched successfully:", data.length, "channels");
         return data;
     } catch (error) {
-        console.error("Error fetching channel data:", error);
+        console.error("Error fetching channel data:", error.message);
         throw error;
     }
 }
@@ -38,7 +45,7 @@ app.get("/api/channels", async (req, res) => {
         const data = await fetchChannelData();
         res.json(data);
     } catch (error) {
-        res.status(500).json({ error: "Failed to fetch channels" });
+        res.status(500).json({ error: "Failed to fetch channels", details: error.message });
     }
 });
 
@@ -48,44 +55,39 @@ app.get("/api/stream", async (req, res) => {
     if (!url) return res.status(400).send("URL is required");
 
     try {
-        // JSON থেকে চ্যানেল ডেটা ফেচ করা
         const channels = await fetchChannelData();
-        
-        // URL-এর জন্য ম্যাচিং চ্যানেল খুঁজে বের করা
         const channel = channels.find(ch => ch.link === url);
         if (!channel) {
             return res.status(404).send("Channel not found");
         }
 
-        // JSON থেকে গতিশীল হেডার সংগ্রহ
         const headers = channel.headers || {
-            "Host": new URL(url).hostname, // URL থেকে Host সংগ্রহ
+            "Host": new URL(url).hostname,
             "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-            "cookie": "" // ডিফল্ট কুকি, JSON থেকে ওভাররাইড হবে
+            "cookie": ""
         };
 
-        // হেডারগুলো কনফার্ম করা
         console.log(`Streaming ${url} with headers:`, headers);
 
-        // স্ট্রিম রিকোয়েস্ট
         request({
             url,
             headers,
             method: "GET",
-            timeout: 10000 // 10 সেকেন্ড টাইমআউট
+            timeout: 10000
         })
             .on("response", (response) => {
                 if (response.statusCode !== 200) {
+                    console.error(`Stream response error: ${response.statusCode}`);
                     res.status(response.statusCode).send("Stream unavailable");
                 }
             })
             .pipe(res)
             .on("error", (err) => {
-                console.error("Stream error:", err);
+                console.error("Stream error:", err.message);
                 res.status(500).send("Stream error");
             });
     } catch (error) {
-        console.error("Error in stream:", error);
+        console.error("Error in stream:", error.message);
         res.status(500).send("Internal server error");
     }
 });

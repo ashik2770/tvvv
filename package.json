@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "express": "^4.18.2",
-    "request": "^2.88.2"
+    "request": "^2.88.2",
+    "node-fetch": "^2.6.7" // node-fetch যোগ করা
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
@@ -18,7 +19,7 @@
   "engines": {
     "node": ">=14.0.0"
   },
-  "author": "King Kong",
+  "author": "Your Name",
   "license": "MIT",
   "keywords": [
     "toffee",
